@@ -1,0 +1,11 @@
+{
+  "name": "museum-killswitch",
+  "description": "예산 초과 시 결제 계정을 분리해 과금을 멈추는 안전장치",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-functions": "^5.0.0",
+    "@google-cloud/billing": "^4.4.0"
+  },
+  "private": true
+}

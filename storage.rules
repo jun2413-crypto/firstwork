@@ -1,0 +1,20 @@
+rules_version = '2';
+// 사진·목소리 파일. 같은 두 계정만, 그리고 한 파일 20MB 미만만 허용.
+// ★ parent1@gmail.com, parent2@gmail.com 을 실제 두 구글 계정으로 바꾸세요.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function allowed() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'parent1@gmail.com',
+          'parent2@gmail.com'
+        ];
+    }
+    match /museum/{allPaths=**} {
+      allow read: if allowed();
+      allow write: if allowed() && request.resource.size < 20 * 1024 * 1024;
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

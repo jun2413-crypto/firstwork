@@ -297,9 +297,10 @@ p{margin:0}
             <input type="file" id="importFile" accept=".zip,application/zip" hidden>
           </div>
         </div>
-        <div>
-          <b>가족에게 링크로 보여 주기<span class="soon">준비 중</span></b>
-          <p class="muted">조부모님이 앱 설치 없이 구경하고 방명록을 남기는 기능은 2차 버전에서 Firebase 연결로 추가됩니다. 지금은 어떤 사진도 휴대폰 밖으로 나가지 않습니다.</p>
+        <div id="syncRow">
+          <b>가족 동기화<span class="soon" id="syncTag">꺼짐</span></b>
+          <p class="muted" id="syncInfo">부부 두 사람의 휴대폰이 같은 미술관을 보도록 Firebase로 동기화합니다. 켜려면 firebase-config.js에 키를 넣고 다시 올리세요. 방법은 함께 드린 FIREBASE-SETUP.md 참고.</p>
+          <div class="row"><button class="btn small" id="syncBtn" hidden></button></div>
         </div>
         <div id="sampleRow" hidden>
           <b>예시 작품</b>
@@ -313,6 +314,7 @@ p{margin:0}
 <div class="toast" id="toast" role="status" hidden></div>
 <div class="busy" id="busy" hidden>잠시만요…</div>
 
+<script src="firebase-config.js"></script>
 <script src="vendor/three.min.js"></script>
 <script>
 (() => {
@@ -383,6 +385,7 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
 }
 const busy = on => { $('#busy').hidden = !on; };
+const syncPush = () => { try { if (window.MuseumBridge && MuseumBridge.sync) MuseumBridge.sync.push(); } catch (e) {} };
 const nextFrame = () => new Promise(r => setTimeout(r, 30));
 function loadImage(blob) {
   return new Promise((res, rej) => {
@@ -892,7 +895,7 @@ async function saveWork() {
     room = ageOf(w);
     $('#add').hidden = true; add.rec = null;
     await refresh();
-    toast(`${room}살실에 걸었어요.`);
+    toast(`${room}살실에 걸었어요.`); syncPush();
   } catch (e) { toast('저장하지 못했어요. 저장 공간이 부족한지 확인해 주세요.'); }
   busy(false);
 }
@@ -907,8 +910,8 @@ function openDetail(id) {
   $('#detailFrame').dataset.frame = w.frame;
   $('#detailAge').textContent = `${child.name} ${ageOf(w)}살 때 · ${fmtDate(w.madeAt)}`;
   $('#detailName').value = w.title; $('#detailDate').value = w.madeAt; $('#detailDate').max = today();
-  frameChips($('#detailFrames'), w.frame, async k => { w.frame = k; $('#detailFrame').dataset.frame = k; await store.putWork(w); });
-  detailRec = mountRecorder($('#detailRec'), w.audio, async b => { w.audio = b; await store.putWork(w); });
+  frameChips($('#detailFrames'), w.frame, async k => { w.frame = k; $('#detailFrame').dataset.frame = k; await store.putWork(w); syncPush(); });
+  detailRec = mountRecorder($('#detailRec'), w.audio, async b => { w.audio = b; await store.putWork(w); syncPush(); });
   const del = $('#deleteWork'); del.textContent = '전시실에서 내리기'; delArmed = 0;
   $('#detail .screen-body').scrollTop = 0;
   $('#detail').hidden = false;
@@ -924,14 +927,20 @@ async function saveDetailFields() {
   if ($('#detailDate').value) w.madeAt = $('#detailDate').value;
   $('#detailHead').textContent = w.title || '이름 없는 작품';
   $('#detailAge').textContent = `${child.name} ${ageOf(w)}살 때 · ${fmtDate(w.madeAt)}`;
-  await store.putWork(w);
+  await store.putWork(w); syncPush();
 }
 async function deleteWork() {
   const del = $('#deleteWork');
   if (Date.now() - delArmed > 4000) { delArmed = Date.now(); del.textContent = '한 번 더 누르면 지워집니다'; setTimeout(() => { if (detailId) del.textContent = '전시실에서 내리기'; }, 4000); return; }
-  const id = detailId;
-  await store.deleteWork(id); works = works.filter(w => w.id !== id); dropUrls(id);
-  await closeDetail(); toast('작품을 내렸어요.');
+  const id = detailId, w = works.find(x => x.id === id);
+  if (window.MuseumBridge && MuseumBridge.sync && MuseumBridge.sync.active) {
+    // 동기화 중에는 삭제 표식(툼스톤)을 남겨 상대 폰에도 삭제가 전달되게 한다.
+    await store.putWork({ id, childId: child.id, deleted: true, createdAt: w ? w.createdAt : Date.now() });
+  } else {
+    await store.deleteWork(id);
+  }
+  works = works.filter(x => x.id !== id); dropUrls(id);
+  await closeDetail(); toast('작품을 내렸어요.'); syncPush();
 }
 
 /* ---------- 예시 작품 ---------- */
@@ -1028,7 +1037,7 @@ async function importBackup(file) {
       works = works.filter(x => x.id !== w.id); works.push(w); n++;
     }
     toast(`작품 ${n}점을 불러왔어요.`);
-    await refresh();
+    await refresh(); syncPush();
   } catch (e) { toast('이 파일은 미술관 백업 파일이 아니에요.'); }
   busy(false); $('#importFile').value = '';
 }
@@ -1038,6 +1047,7 @@ let installEvt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('#installRow').hidden = false; });
 async function openSettings() {
   Gallery.stop();
+  if (window.MuseumBridge && MuseumBridge.sync) MuseumBridge.sync.renderUI();
   $('#setName').value = child.name; $('#setBirth').value = child.birth; $('#setBirth').max = today();
   $('#sampleRow').hidden = !works.some(w => w.sample);
   $('#backupRow').hidden = inFrame;
@@ -1054,7 +1064,7 @@ async function openSettings() {
 }
 async function closeSettings() {
   const name = $('#setName').value.trim(), birth = $('#setBirth').value;
-  if (name && birth && (name !== child.name || birth !== child.birth)) { child.name = name; child.birth = birth; child.updatedAt = Date.now(); await store.setMeta('child', child); }
+  if (name && birth && (name !== child.name || birth !== child.birth)) { child.name = name; child.birth = birth; child.updatedAt = Date.now(); await store.setMeta('child', child); syncPush(); }
   $('#settings').hidden = true;
   await refresh();
 }
@@ -1103,7 +1113,7 @@ $('#welcomeForm').addEventListener('submit', async e => {
   if ($('#withSamples').checked) await addSamples();
   room = curAge();
   $('#welcome').hidden = true; busy(false);
-  await refresh();
+  await refresh(); syncPush();
 });
 
 (async function boot() {
@@ -1113,15 +1123,32 @@ $('#welcomeForm').addEventListener('submit', async e => {
   try { if (document.fonts && document.fonts.load) await Promise.race([document.fonts.load("700 84px 'Gowun Batang'"), new Promise(r => setTimeout(r, 1500))]); } catch (e) {}
   child = await store.getMeta('child') || null;
   if (!child) { $('#childBirth').max = today(); $('#welcome').hidden = false; return; }
-  works = await store.listWorks();
+  works = (await store.listWorks()).filter(w => !w.deleted);
   room = curAge();
   await refresh();
 })();
+
+// 동기화 계층(firebase-sync.js)이 앱 내부에 닿는 유일한 창구. 설정 전에는 아무 일도 안 한다.
+window.MuseumBridge = {
+  store,
+  get child() { return child; },
+  getWorks() { return works; },
+  async reloadFromStore() { works = (await store.listWorks()).filter(w => !w.deleted); if (child) await refresh(); },
+  async applyRemoteChild(c) {
+    child = c; await store.setMeta('child', c);
+    $('#welcome').hidden = true; room = ageAt(c.birth, today());
+    works = (await store.listWorks()).filter(w => !w.deleted); await refresh();
+  },
+  dropUrls, toast, uid, ageOf, loadImage, fitCanvas, toJpeg, audioExt,
+  ui: { tag: () => $('#syncTag'), info: () => $('#syncInfo'), btn: () => $('#syncBtn') },
+  sync: null,
+};
 
 if ('serviceWorker' in navigator && !inFrame && location.protocol === 'https:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 })();
 </script>
+<script src="firebase-sync.js"></script>
 </body>
 </html>

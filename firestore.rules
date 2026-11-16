@@ -1,0 +1,18 @@
+rules_version = '2';
+// 작품 메타데이터. 아래 두 이메일(부모 계정)만 읽고 쓸 수 있다.
+// ★ parent1@gmail.com, parent2@gmail.com 을 실제 두 구글 계정으로 바꾸세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function allowed() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'parent1@gmail.com',
+          'parent2@gmail.com'
+        ];
+    }
+    match /museum_works/{id} { allow read, write: if allowed(); }
+    match /museum_meta/{id}  { allow read, write: if allowed(); }
+    match /{document=**}     { allow read, write: if false; }
+  }
+}
