@@ -1,0 +1,17 @@
+{
+  "name": "첫 미술관",
+  "short_name": "첫 미술관",
+  "description": "아이 작품을 액자에 넣어 나이별 전시실에 거는 우리 집 미술관",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F3F4F0",
+  "theme_color": "#1B2540",
+  "lang": "ko",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
