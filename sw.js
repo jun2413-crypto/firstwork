@@ -1,5 +1,5 @@
 // 앱 파일을 기기에 저장해 인터넷 없이도 열리게 한다. 작품 데이터는 여기가 아니라 IndexedDB에 있다.
-const CACHE = 'first-museum-v2';
+const CACHE = 'first-museum-v3';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'vendor/three.min.js', 'firebase-sync.js', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {

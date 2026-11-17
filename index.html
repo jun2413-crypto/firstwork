@@ -443,6 +443,7 @@ function mountRecorder(el, initial, onChange) {
         <button class="btn small" data-a="start">다시 녹음</button><button class="btn small" data-a="clear">지우기</button>`;
     } else {
       el.innerHTML = `<button class="btn small" data-a="start"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>녹음 시작</button>
+        <button class="btn small" data-a="pick">녹음 파일 선택</button>
         <span class="muted">“이건 뭐 그린 거야?” 하고 물어봐 주세요.</span>`;
     }
     if (msg) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = msg; el.appendChild(m); }
@@ -461,27 +462,31 @@ function mountRecorder(el, initial, onChange) {
       const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t));
       rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
       chunks = [];
-      rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
       rec.onstop = () => {
-        const b = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+        const mt = (rec && rec.mimeType) || 'audio/webm';
         rec = null; stopTracks();
-        if (b.size) { blob = b; onChange(blob); }
+        const b = new Blob(chunks, { type: mt });
+        if (b.size) { blob = b; onChange(blob); msg = ''; }
+        else { msg = '녹음이 저장되지 않았어요. 한 번 더 시도하거나 "녹음 파일 선택"을 눌러 주세요.'; }
         draw();
       };
-      rec.start(); t0 = Date.now(); msg = ''; draw();
+      // timeslice(1초): 일부 브라우저(iOS 등)가 정지 때 데이터를 안 넘기는 문제를 막는다.
+      rec.start(1000); t0 = Date.now(); msg = ''; draw();
     } catch (e) {
       rec = null; stopTracks();
       msg = '마이크를 쓸 수 없어요. 브라우저 주소창의 자물쇠 아이콘에서 마이크 권한을 허용해 주세요.';
       draw();
     }
   }
-  function stop() { if (rec && rec.state !== 'inactive') rec.stop(); }
+  function stop() { if (rec && rec.state !== 'inactive') { try { rec.requestData(); } catch (e) {} rec.stop(); } }
   el.onclick = e => {
     const a = e.target.closest('[data-a]'); if (!a) return;
     const k = a.dataset.a;
     if (k === 'start') start();
     else if (k === 'stop') stop();
     else if (k === 'play') playBlob(blob);
+    else if (k === 'pick') { player.pause(); pickFile(); }
     else if (k === 'clear') { blob = null; onChange(null); draw(); }
   };
   draw();
